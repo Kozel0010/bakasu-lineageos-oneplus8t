@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Send a plain-text CI notification without logging bot credentials."""
+"""Send an HTML-formatted CI notification without logging credentials."""
+import html
 import json
 import os
-import sys
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -20,18 +20,21 @@ def message(env, metadata=None):
         title = 'LineageOS kebab: build and release succeeded'
     else:
         title = 'LineageOS kebab: workflow ' + status
-    lines = [title]
+    esc = html.escape
+    lines = ['<b>' + esc(title) + '</b>']
     if metadata:
-        lines.extend(['ROM: ' + metadata['rom']['filename'],
-                      'Stock boot SHA-256: ' + metadata['boot']['sha256'],
-                      'Kernel: ' + metadata['kernel_commit'],
-                      'BakaSU: ' + metadata['bakasu_commit']])
+        lines.extend(['', '<b>ROM</b>\n<code>' + esc(metadata['rom']['filename']) + '</code>',
+                      '<b>Stock boot SHA-256</b>\n<code>' + esc(metadata['boot']['sha256']) + '</code>',
+                      '<b>Kernel</b>\n<code>' + esc(metadata['kernel_commit']) + '</code>',
+                      '<b>BakaSU</b>\n<code>' + esc(metadata['bakasu_commit']) + '</code>'])
         if status == 'success' and exists == 'no':
-            lines.append('Offline verified only; not device tested. AVB NONE; unlocked bootloader required.')
-            lines.append('Release: https://github.com/' + env['GITHUB_REPOSITORY'] + '/releases/tag/kebab-' + metadata['identity'])
+            lines.append('\n<i>Offline verified only; not device tested. AVB NONE; unlocked bootloader required.</i>')
+            url = 'https://github.com/' + env['GITHUB_REPOSITORY'] + '/releases/tag/kebab-' + metadata['identity']
+            lines.append('<a href="' + esc(url, quote=True) + '">View release</a>')
     elif env.get('BUILD_DATE'):
-        lines.append('Requested date: ' + env['BUILD_DATE'])
-    lines.append('Run: ' + env['GITHUB_SERVER_URL'] + '/' + env['GITHUB_REPOSITORY'] + '/actions/runs/' + env['GITHUB_RUN_ID'])
+        lines.append('Requested date: <code>' + esc(env['BUILD_DATE']) + '</code>')
+    url = env['GITHUB_SERVER_URL'] + '/' + env['GITHUB_REPOSITORY'] + '/actions/runs/' + env['GITHUB_RUN_ID']
+    lines.append('<a href="' + esc(url, quote=True) + '">View workflow run</a>')
     return '\n'.join(lines)
 
 
@@ -43,6 +46,7 @@ def main():
     p = Path('selection/inputs.json')
     metadata = json.loads(p.read_text()) if p.exists() else None
     payload = urllib.parse.urlencode({'chat_id': chat, 'text': message(os.environ, metadata),
+                                     'parse_mode': 'HTML',
                                      'disable_notification': 'true' if os.environ['BUILD_STATUS'] in ('started', 'success') else 'false'}).encode()
     request = urllib.request.Request('https://api.telegram.org/bot' + token + '/sendMessage', data=payload)
     try:
