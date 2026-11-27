@@ -42,7 +42,8 @@ def main():
         raise SystemExit('Telegram notification not configured: set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID secrets')
     p = Path('selection/inputs.json')
     metadata = json.loads(p.read_text()) if p.exists() else None
-    payload = urllib.parse.urlencode({'chat_id': chat, 'text': message(os.environ, metadata)}).encode()
+    payload = urllib.parse.urlencode({'chat_id': chat, 'text': message(os.environ, metadata),
+                                     'disable_notification': 'true' if os.environ['BUILD_STATUS'] in ('started', 'success') else 'false'}).encode()
     request = urllib.request.Request('https://api.telegram.org/bot' + token + '/sendMessage', data=payload)
     try:
         with urllib.request.urlopen(request, timeout=30) as response:
