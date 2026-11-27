@@ -30,14 +30,17 @@ test "$(git -C "$WORK/BakaSU" rev-parse --is-shallow-repository)" = false
 fetch "$WORK/mkbootimg" https://android.googlesource.com/platform/system/tools/mkbootimg d2bb0af5ba6d3198a3e99529c97eda1be0b5a093
 fetch "$WORK/avb" https://android.googlesource.com/platform/external/avb 761178607206f4cb2af79ed9eec52d8cbd814adb
 # The prebuilt checkout is sparse, but pinned to the same source tree as the tested compiler.
-test ! -e "$WORK/clang"
-git init -q "$WORK/clang"
-git -C "$WORK/clang" remote add origin https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86
-git -C "$WORK/clang" sparse-checkout init --cone
-git -C "$WORK/clang" sparse-checkout set clang-r596125
-git -C "$WORK/clang" fetch --depth=1 --filter=blob:none origin 383d35d98a3e1635d2e3a88d866b125d7d20a0c1
-git -C "$WORK/clang" checkout --detach FETCH_HEAD
+if [[ ! -e "$WORK/clang" ]]; then
+  git init -q "$WORK/clang"
+  git -C "$WORK/clang" remote add origin https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86
+  git -C "$WORK/clang" sparse-checkout init --cone
+  git -C "$WORK/clang" sparse-checkout set clang-r596125
+  git -C "$WORK/clang" fetch --depth=1 --filter=blob:none origin 383d35d98a3e1635d2e3a88d866b125d7d20a0c1
+  git -C "$WORK/clang" checkout --detach FETCH_HEAD
+fi
 test "$(git -C "$WORK/clang" rev-parse HEAD)" = 383d35d98a3e1635d2e3a88d866b125d7d20a0c1
+git -C "$WORK/clang" diff --quiet HEAD -- clang-r596125
+test -z "$(git -C "$WORK/clang" ls-files --others --exclude-standard -- clang-r596125)"
 export PATH="$WORK/clang/clang-r596125/bin:$PATH"
 clang --version | grep -F 'clang version 22.0.2'
 python3 "$WORK/mkbootimg/unpack_bootimg.py" --boot_img "$WORK/input/boot.img" --out "$WORK/unpacked"

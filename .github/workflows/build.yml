@@ -42,6 +42,12 @@ jobs:
             if printf '%s' "$code" | grep -q '^HTTP/.* 404'; then exists=no; else printf '%s\n' "$code" >&2; exit 1; fi
           }
           echo "exists=$exists" >> "$GITHUB_OUTPUT"
+      - name: Restore pinned Clang cache
+        if: steps.selection.outputs.exists == 'no'
+        uses: actions/cache@v4
+        with:
+          path: work/clang
+          key: clang-r596125-383d35d98a3e1635d2e3a88d866b125d7d20a0c1-v1
       - name: Build and verify
         if: steps.selection.outputs.exists == 'no'
         env:
