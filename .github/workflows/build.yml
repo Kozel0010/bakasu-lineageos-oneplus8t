@@ -84,7 +84,8 @@ jobs:
           RELEASE_ID: ${{ steps.selection.outputs.id }}
         run: |
           set -euo pipefail
-          gh release create "kebab-$RELEASE_ID" --title "kebab BakaSU $RELEASE_ID" --notes-file dist/RELEASE.md dist/boot-bakasu.img dist/SHA256SUMS dist/verification.json dist/report.json dist/inputs.json dist/build.log dist/kernel-integration.patch dist/kernel.config dist/stock.config
+          title=$(python3 -c 'import json; s=json.load(open("dist/inputs.json"))["rom"]["filename"]; assert s.endswith("-signed.zip"); print(s.removesuffix("-signed.zip"))')
+          gh release create "kebab-$RELEASE_ID" --title "$title" --notes-file dist/RELEASE.md dist/boot-bakasu.img dist/SHA256SUMS dist/verification.json dist/report.json dist/inputs.json dist/build.log dist/kernel-integration.patch dist/kernel.config dist/stock.config
       - name: Notify final result
         if: always()
         env:
