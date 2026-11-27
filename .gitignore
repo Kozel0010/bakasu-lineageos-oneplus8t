@@ -1,0 +1,5 @@
+/work/
+/dist/
+/selection/
+__pycache__/
+*.pyc

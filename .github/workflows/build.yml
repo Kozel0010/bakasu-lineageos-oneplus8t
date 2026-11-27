@@ -1,0 +1,73 @@
+name: Build kebab BakaSU boot
+on:
+  schedule:
+    - cron: '35 6 * * *'
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'LineageOS build date (YYYYMMDD; empty = latest supported)'
+        required: false
+        type: string
+permissions:
+  contents: write
+concurrency:
+  group: kebab-bakasu-release
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y aria2 bc bison flex build-essential binutils libssl-dev libelf-dev libncurses-dev python3 rsync cpio lz4 git curl ca-certificates perl pkg-config file patch gawk xz-utils openssl binutils-aarch64-linux-gnu binutils-arm-linux-gnueabi
+      - name: Select inputs and check release identity
+        id: selection
+        env:
+          BUILD_DATE: ${{ inputs.date }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          args=()
+          if [ -n "$BUILD_DATE" ]; then args+=(--date "$BUILD_DATE"); fi
+          python3 scripts/inputs.py "${args[@]}" --output selection
+          id=$(python3 -c 'import json;print(json.load(open("selection/inputs.json"))["identity"])')
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+          # Only a definite 404 is absence; authentication/network failures must stop.
+          code=$(gh api -i "repos/$GITHUB_REPOSITORY/releases/tags/kebab-$id" 2>&1) && exists=yes || {
+            if printf '%s' "$code" | grep -q '^HTTP/.* 404'; then exists=no; else printf '%s\n' "$code" >&2; exit 1; fi
+          }
+          echo "exists=$exists" >> "$GITHUB_OUTPUT"
+      - name: Build and verify
+        if: steps.selection.outputs.exists == 'no'
+        env:
+          BUILD_DATE: ${{ inputs.date }}
+          BUILD_JOBS: '4'
+        run: |
+          set -euo pipefail
+          bash scripts/build.sh
+          cmp selection/inputs.json work/input/inputs.json
+          (cd dist && sha256sum -c SHA256SUMS)
+          python3 scripts/release-notes.py dist > dist/RELEASE.md
+      - name: Retain diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: diagnostics-${{ github.run_id }}
+          path: |
+            dist/
+            selection/inputs.json
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Publish verified release
+        if: success() && steps.selection.outputs.exists == 'no'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ steps.selection.outputs.id }}
+        run: |
+          set -euo pipefail
+          gh release create "kebab-$RELEASE_ID" --title "kebab BakaSU $RELEASE_ID" --notes-file dist/RELEASE.md dist/boot-bakasu.img dist/SHA256SUMS dist/verification.json dist/report.json dist/inputs.json dist/build.log dist/kernel-integration.patch dist/kernel.config dist/stock.config
