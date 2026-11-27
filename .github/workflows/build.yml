@@ -21,6 +21,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - name: Notify check started
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          BUILD_STATUS: started
+          BUILD_DATE: ${{ inputs.date }}
+        run: python3 scripts/notify.py
       - name: Install dependencies
         run: |
           sudo apt-get update
@@ -77,3 +85,12 @@ jobs:
         run: |
           set -euo pipefail
           gh release create "kebab-$RELEASE_ID" --title "kebab BakaSU $RELEASE_ID" --notes-file dist/RELEASE.md dist/boot-bakasu.img dist/SHA256SUMS dist/verification.json dist/report.json dist/inputs.json dist/build.log dist/kernel-integration.patch dist/kernel.config dist/stock.config
+      - name: Notify final result
+        if: always()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          BUILD_STATUS: ${{ job.status }}
+          BUILD_EXISTS: ${{ steps.selection.outputs.exists }}
+          BUILD_DATE: ${{ inputs.date }}
+        run: python3 scripts/notify.py
